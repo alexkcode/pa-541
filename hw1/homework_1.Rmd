@@ -1,0 +1,174 @@
+---
+title: "PA 541: Homework 1"
+author: "Alexis Kwan"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r include=FALSE}
+library(tidyverse)
+fatalities <- read_csv("Fatalities.csv")
+```
+
+# Part 1
+
+## Question 1
+
+### 1 a
+First, let’s select a handful of variables to focus on and remove the others. Create a new dataset, call it fatality2, that contains only the following variables: fatal, state, year, spirits, unemp, income, dry, pop, and miles. Use this dataset for all steps below.
+```{r}
+fatality2 <- fatalities %>%
+             select(fatal, state, year, spirits, unemp, income, dry, pop, miles)
+```
+
+### 1 b
+For each year available in the dataset (i.e., 1982 – 1988), how many total fatalities were there in each of those years?
+```{r message=FALSE, warning=FALSE}
+fatality2 %>% select(fatal, year) %>%
+              group_by(year) %>%
+              summarise( total = sum(fatal) )
+```
+There were fatalities in the 40,000's for each of the years, increasing at about a thousand for each year.
+
+### 1 c
+Which state had the largest number of fatalities in 1982?
+```{r}
+fatality2[fatality2$fatal == max(fatality2$fatal), c("state","fatal")]
+```
+California had the most fatalities in 1982 at 5504 fatalities.
+
+## 1 d 
+Which states in which years had more than 1,000 fatalities and more than 20% of its population residing in dry counties?
+```{r}
+fatality2[fatality2$fatal > 1000 & fatality2$dry > 20, c("state","year","dry")]
+```
+Alabama and North Carolina had more than 1,000 fatalities with at least 20% of its populations residing in dry counties. It spans the years of 1982 to 1988.
+
+## 1 e 
+What is the average number of fatalities in each state?
+```{r message=FALSE}
+fatality2 %>% select(fatal, state) %>%
+              group_by(state) %>%
+              summarise( avg = mean(fatal) )
+```
+
+## QUESTION 2
+Create a new variable, ‘fatal.cat’ that breaks the continuous variable fatal down into three categories: 
+
+i. $0 - 300$
+ii. $> 300 - 1000$
+iii. $> 1000$
+
+Please label the categories “low”, “mid”, “high”. Set this new variable to be a factor.
+What is the mean of miles in each of the fatal categories?
+```{r message=FALSE}
+fatality2$fatal.cat <- 
+  case_when(
+    (fatality2$fatal > 0 & fatality2$fatal <= 300) ~ "low",
+    (fatality2$fatal > 300 & fatality2$fatal <= 1000) ~ "mid",
+    (fatality2$fatal > 1000) ~ "high"
+  )
+fatality2 %>% select(fatal.cat, miles) %>%
+              group_by(fatal.cat) %>%
+              summarise( avg_by_cat = mean(miles) )
+```
+The mean number of miles for the high fatality category is 7645.021, while it is 7689.332 and 8509.254 miles average for the middle and low number of fatality categories respectively.
+
+# PART TWO
+Regression. For part 2, let’s limit the fatality2 data from above to only the year 1987. So, to begin part 2, create this new dataset and call it fatality3.
+```{r}
+fatality3 <- fatality2[fatality2$year == 1987,]
+fatality3
+```
+
+## QUESTION 3
+Using the newly created fatality3 dataset, test the correlation between miles and fatal. What are your findings (i.e., what is the size of the correlation and is it significant)?
+```{r}
+cor.test(fatality3$miles, fatality3$fatal)
+```
+There is a negative $0.2$ correlation which means there is a weak correlation and when the number of fatalities increases the miles traveled would decrease. But since the p-value of $0.1691 > 0.05$ the correlation is not statistically significant. That also means that if the null hypothesis is that there is no correlation, we can not reject the null hypothesis under a significance level of 0.05.
+
+## QUESTION 4
+Create a new population variable, that is population in 100,000s. Call the new variable pop_100k. Run a simple linear regression predicting fatal from pop.100k. 
+
+a. Interpret the estimates of the slope and intercept coefficients in the context of the problem. 
+b. What is the percentage of variation in fatal explained by pop_100k? 
+c. Predict the number of fatalities in a state if the population was 8 million.
+```{r}
+fatality3$pop_100k <- fatality3$pop / 100000
+mod1 <- lm(fatal ~ pop_100k, data = fatality3)
+summary(mod1)
+```
+```{r}
+predict(mod1, list("pop_100k" = 8000))
+```
+For every 100,000 increase in population, the model predicts an increase of 17.79 deaths.According to the $R^2$ given in the summary, approximately 92% of the variation is explained by the linear regression model on pop_100k. For a population of 8 million, this model predicts about 142,404.7 fatalities.
+
+## QUESTION 5
+Which state has the largest negative residual in our model from question 4?  
+Which state has the largest positive residual?  
+Tell me what these large positive and large negative residuals mean within the context of our data and model.
+```{r}
+neg_res <-
+  sapply(
+    residuals(mod1),
+    FUN = function(x) {ifelse(test = (sign(x) == -1),
+                              yes = x,
+                              no = NA
+                              )
+    }
+  )
+c(fatality3$state[which.max(-neg_res)], neg_res[which.max(-neg_res)])
+```
+New York state has the largest residual of approximately -905.30.
+```{r}
+pos_res <-
+  sapply(
+    residuals(mod1),
+    FUN = function(x) {ifelse(test = (sign(x) == 1),
+                              yes = x,
+                              no = NA
+                              )
+    }
+  )
+c(fatality3$state[which.max(pos_res)], pos_res[which.max(pos_res)])
+```
+Florida has the largest positive residual at 632.99.
+
+The size of these residuals means that for the states of Florida and New York, the linear model was the least accurate in the prediction of the number of fatalities for these states.
+
+## QUESTION 6
+Fit another regression model with fatal as the dependent variable and pop_100k, miles, and dry as the predictors. 
+
+a. What percentage of the variation in the dependent variable is explained by the predictors? 
+b. Ignoring whether the predictor is significant or not, interpret the coefficient estimates for each predictor. Be specific when discussing the relationship. 
+c. How do we interpret the p-value for dry? 
+d. By how much did our R-squared increase from our initial model that only included pop_100k as a predictor?
+```{r}
+mod2 <- lm(fatal ~ pop_100k + miles + dry, data = fatality3)
+summary(mod2)
+```
+About 95% of the variation is explained by this model. The pop_100k coefficient tells us that for every additional 100,000 people, there would be about 18 additional deaths on average, holding the number of miles traveled, and the "dryness" of the county constant. Similarly, the miles and "dry" coefficients tells us that for 1 mile increase in travel or 1% increase in "dryness" there would be on average 0.14 more or 7 more fatalities respectively, holding the other factors constant. The intercept tells us if there was no contribution from the other factors, i.e. at a population of 0, 0 miles traveled, and 0% dry, then there would still be an average of -1226 deaths. Clearly the other variables make up for this negative base value in their contributions to the number of fatalities. The p-value for our dry variable is at 0.0421, which tells us that there is a 4.21% chance that this result is random. At a significance level of 0.05, the coefficient is statistically significant and we can reject the null hypothesis that the coefficient is 0 or that there is no effect from dryness. As compared to our previous model with just the pop_100k as a predictor our R^2 squared increased by 0.02, which means the addition of the miles and dry variables only explained 2% more of the variation.
+
+## QUESTION 7
+Run the following two models and compare the difference in the size and direction of the coefficient on miles.
+
+$Y_i = b_0 + b_1 miles_i + e_i$
+$Y_i = b_0 + b_1 miles_i + b_2 pop100\_k_i + e_i$
+
+What is happening here? Can we trust the estimate of the effect of miles in the first model?
+```{r}
+mod3 <- lm(fatal ~ miles, data = fatality3)
+mod4 <- lm(fatal ~ miles + pop_100k, data = fatality3)
+summary(mod3)
+```
+We cannot trust the first model for a couple reasons. Firstly, the coefficient for miles fails to be statistically significant even for a level of 0.05 since the p-value is 0.17. Secondly, only 4% of the variation is explained by the model. 
+```{r}
+summary(mod4)
+```
+We can see with the second model, not only are both of the coefficients statistically significant with p-values much smaller than 0.05, but much more of variance is explained when the population variable is added to the model. Clearly the second variable, pop_100k, has a positive effect on the independent variable, the number of fatalities. We see that contribution from miles to the fatalities in the model has increased evident from the changes of signs of the coefficient to positive from negative compared to the previous model.
+```{r}
+cor.test(fatality3$miles, fatality3$pop_100k)
+```
+From Pearson's correlation test we see that there is a statistically significant negative correlation, at a significance level of 0.05, between miles and pop_100k. From this we can see there was omitted variable bias, since there is a correlation between our independent variables and the new variable has an effect on the independent variable. Since the correlation is negative and the coefficient of pop_100k is negative, the omitted variable bias is negative. Intuitively, the intercept of the first model seemed to be overcompensating for the smaller coefficient and doing most of the heavy lifting, while in the second model miles traveled is compensating for the new variable in the opposite direction.
