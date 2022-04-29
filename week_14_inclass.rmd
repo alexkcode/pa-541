@@ -1,0 +1,46 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+fatalities <- read.csv("Fatalities.csv")
+library(tidyverse)
+```
+
+Create a visualization that tracks the number of alcohol related vehicle fatalities (afatal) for AL, AZ, AR, CA, and CO over time.  Note, your software may have read the variable year in as a factor, be sure to change it to numeric before plotting the data.
+```{r}
+fatalities %>%
+  filter(state %in% c("al", "az", "ar", "ca", "co")) %>%
+  ggplot(aes(x = year, y = afatal)) + geom_point()
+```
+
+Create a new variable, Population in 100,000s based on the existing variable pop. Run a standard OLS model (that includes all states) predicting alcohol fatalities (afatal) by beer tax (beertax) and your new population variable (population in 100,000s). Interpret the coefficients on population and beertax. Note, beertax has the opposite effect of the intended policy (higher beertaxes should reduce consumption and reduce the number of alcohol related fatalities). Why might we be finding these counterintuitive effects?
+```{r}
+fatalities$pop_100k <- fatalities$pop/100000
+fatal_lm <- lm(afatal ~ beertax + pop_100k, data = fatalities)
+summary(fatal_lm)
+```
+
+Estimate a fixed effects model to assess the impact of the beertax on alcohol fatalities.  In your model please control for both state and year fixed effects and include the predictors of population in 100,000s and beertax. Interpret the results.  Provide an explanation for why the effect of beertax changed in the fixed effects model? 
+```{r}
+library(plm)
+fatal2 <- pdata.frame(fatalities, index = c("state","year"))
+fatal_plm <- plm(afatal ~ beertax + pop_100k, data = fatal2, model = "within")
+summary(fatal_plm)
+```
+
+Does the model in question 9 control for differences in total land area for each state?  Why or why not?
+
+State could serve as a proxy for total land area, but then states with similar land area could over-account for the effect of land area for a particular size. But either way not variable for land was included so the model does not specifically adjust for it.
+
+Re-estimate the model from question 9, but now include unemployment (unemp). What is the effect of unemployment on alcohol fatalities?
+```{r}
+fatal_plm2 <- plm(afatal ~ beertax + pop_100k + unemp, data = fatal2, model = "within")
+summary(fatal_plm2)
+```
+
+Look at your results from question 11 above.  Does the model imply that the effects of a one-unit change in beertax results in the same impact on fatalities for all states in the model?  If so why, and why is this potentially a problem?  How might you improve the model?
+
+
+

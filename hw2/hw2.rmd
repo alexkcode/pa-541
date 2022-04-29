@@ -1,0 +1,225 @@
+---
+title: "PA 541 : Homework 2"
+author: "Alexis Kwan"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r}
+library(tidyverse)
+car_data <- read_csv("car_data.csv")
+insurance <- read_csv("insurance.csv")
+```
+```{r}
+summary(car_data)
+```
+
+# PART 1
+
+Variable name (Description)
+
+- name (Model of the car)
+- year (Year of the car when it was bought)
+- selling_price (Price at which the car is being sold in Indian Rupees)
+- km_driven (Number of Kilometers the car is driven)
+- fuel (Fuel type of car (petrol / diesel / CNG / LPG / electric))
+- seller_type (Tells if a seller is Individual or a Dealer)
+- transmission (Gear transmission of the car (Automatic/Manual))
+- owner (Number of previous owners of the car.)
+
+### QUESTION 1 (10 pts)
+
+a. What is the average selling price for automatic versus manual cars? (2 pts)
+b. Of the automatic cars, which model was sold at the highest price? (2pts)
+c. Plot the average selling price for each type of transmission. (3 pts)
+d. Plot the relationship between selling price and year for the automatic and manual cars on the same plot. (3 pts)
+
+```{r message=FALSE}
+car_data %>% 
+  group_by(transmission) %>%
+  summarise(avg_price = mean(selling_price))
+```
+The average selling price for automatic cars is about 1,000,000 more than manual cars.
+
+```{r message=FALSE}
+car_data %>%
+  filter(transmission == "Automatic", selling_price == max(selling_price))
+```
+```{r message=FALSE}
+car_data %>%
+  group_by(transmission) %>%
+  summarise(avg_price = mean(selling_price))
+```
+Plot the relationship between selling price and year for the automatic and manual cars.
+```{r}
+ggplot(mapping = aes(x = reorder(year,selling_price), y = selling_price, fill=transmission)) + 
+  geom_violin(data = car_data %>% filter(transmission=="Automatic")) + 
+  geom_violin(data = car_data %>% filter(transmission=="Manual")) + 
+  xlab("Selling Price") +
+  ylab("Year") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+```{r message=FALSE}
+car_data %>%
+  group_by(year, transmission) %>%
+  summarise(avg_price = mean(selling_price)) %>%
+  ggplot(mapping = aes(x = year, y = avg_price, color=transmission)) + geom_line()
+```
+
+### QUESTION 2 (8 pts)
+
+Estimate a model with selling price as the dependent variable and kilometers driven and transmission as the independent variables. (2pts)  
+Interpret the coefficients on all independent variables and the intercept. (6 pts)
+
+```{r}
+price_mod1 <- lm(selling_price ~ km_driven + transmission, data = car_data)
+summary(price_mod1)
+```
+When the km driven is 0 and transmission is automatic, the base selling price, i.e. the intercept, is on average at a value of 1,489,000. It is also statistically significant. Per km driven, value drops by 1.618. This effect is also statistically significant. The average difference in value between manual and automatic transmission is -978,300, with automatic transmission being the higher valued one on average. This effect from transmission is also statistically significant. All coefficients significant at p-values much smaller than 0.05.
+
+### QUESTION 3 (6 points)
+
+Now add year to the model. What happens to the coefficient on kilometers driven? Why?
+
+```{r}
+# year was recentered to make the intercept make more sense, 
+# since you cannot have negative base value
+car_data$year_zeroed <- car_data$year - min(car_data$year)
+price_mod2 <- lm(selling_price ~ km_driven + transmission + year_zeroed, data = car_data)
+summary(price_mod2)
+```
+The coefficient of the km_driven variable switched while the magnitude of the coefficient went down by an order of 10 and also became statistically insignificant. The effect from year is much great than from km driven and more statistically significant.
+```{r}
+cor.test(car_data$year, car_data$km_driven)
+```
+Given that there is a statistically signficant negative correlation between the variables, and the effect from year is positive, the bias is negative. Since the new coefficient is greater than the old, the effect from km_driven was undercompensating for the hidden missing effect from year on price resulting in a downwards bias in the original model. 
+
+### QUESTION 4 (6 points)
+
+Now add the categorical variable owner to the previous model (the one that included km_driven, transmission, and year). Make “first owner” the reference group for the owner variable (hint: you would need to tranform the variable “owner” into a factor before determining the reference group). (2 pts) Interpret the coefficients of owner. (4 pts)
+
+```{r}
+# change reference group to First Owner
+car_data$owner_cat <- factor(car_data$owner)
+levels(car_data$owner_cat)
+```
+```{r}
+price_mod3 <- lm(selling_price ~ km_driven + transmission + year_zeroed + owner_cat, data = car_data)
+summary(price_mod3)
+```
+For owner, since the base level is the "first owner", it would be included in  the intercept. This means that when the kilometers driven is 0, transmission is automatic, the year of the car is 1992 AND when the car is on its first owner, then the value of the is 364,000. When the car is on the second owner, 52,820 in value is lost on average compared to having just one owner in the past. This is statistically significant at a p-value of 0.05 and below, so we can reject the null hypothesis that the coefficient is 0 or that there is no difference in price between a car having 2nd owner and a 1st owner. When the car is on its third owner, 57,750 is lost in value on average from the base or first owner price point. This effect is also statistically significant at a p-value of 0.05, so we can again reject the null hypothesis that there is no difference. The average effect from the car being on fourth owner status is at -24,040 on the price (compared to single owner) but is not remotely statistically significant. The test drive owner status does statistically significant effect but only at a significance level 0.10. The average difference in price for test drive ownership status is 195,500.
+
+### QUESTION 5 (4 points)
+
+What would be the predicted selling price of an automatic 2012 car with 100,000 kilometers and whose owner category is first owner?
+
+```{r}
+test_df <- data.frame(km_driven=c(100000),
+                      transmission=c("Manual"),
+                      year_zeroed=c(2012-min(car_data$year)),
+                      owner_cat="First Owner")
+predict(price_mod3, newdata = test_df)
+
+# did it two different ways to confirm
+test <- c(1,100000,1,2012-min(car_data$year),0,0,0,0)
+crossprod(test, price_mod3$coefficients)
+```
+The predicted price would be 385508.6
+
+### QUESTION 6 (6 points)
+
+The model above implicitly assumes the effect of year is the same regardless of the kilometers driven. Test whether this assumption is true and briefly discuss your results (i.e., tell me whether the assumption is true or not).
+
+```{r}
+price_mod3 <- lm(selling_price ~ km_driven + transmission + year_zeroed + owner_cat + year_zeroed*km_driven, data = car_data)
+summary(price_mod3)
+```
+Given that the interaction coefficient is statistically significant, the assumption that there was no interaction between kilometers driven and year may be wrong. The year of the car has a significant moderation effect on the km driven and we can reject the null hypothesis that there is no effect. For every additional year on the car, the effect of km driven decreases by 0.09712 per km on the selling price.
+
+# PART 2
+
+Load the data file called ‘insurance.csv’. This data contains medical information and costs billed by health insurance companies. The data contains the following variables:
+
+- age (age of primary beneficiary)
+- gender (insurance contractor gender, female, male)
+- bmi (Body mass index)
+- children (Number of children covered by health insurance / Number of dependents)
+- smoker (Fuel type of car (petrol / diesel / CNG / LPG / electric))
+- region (the beneficiary’s residential area in the US)
+- charges ( Individual medical costs billed by health insurance)
+
+### QUESTION 7 (8 points)
+Write out a model (in notation similar to that which we use in class or the Wooldridge text; in other words write out the regression model) that predicts the charges based on age, sex, bmi and smoker. You can use the Microsoft word equation editor or simply enter the model using regular text in word. (2 pts)  
+Given the model and how the variables are defined in the dataset, what is the base group? (2 pts)  
+Write out the condition expectation for a female smoker. (2 pts)  
+Write out the conditional expectation for a male nonsmoker. (2 pts)  
+
+$$\widehat{charges} = \hat\beta_0 + \hat\beta_1 age + \hat\beta_2 sex + \hat\beta_3 bmi + \hat\beta_4 smoker$$
+Assuming that the categorical variable base levels are chosen based on alphabetic order or set by us, the base group should be where age is 0, the gender is female, BMI is at 0 and they are non-smokers.
+
+Write out the condition expectation for a female smoker.
+$$
+E(y_i | age, sex=0, bmi, smoker=1)=\hat\beta_0 + \hat\beta_1 age + \hat\beta_3 bmi + \hat\beta_4
+$$
+\
+Write out the conditional expectation for a male nonsmoker.
+$$
+E(y_i | age, sex=1, bmi, smoker=0)=\hat\beta_0 + \hat\beta_1 age + \hat\beta_2 + \hat\beta_3 bmi
+$$
+
+### QUESTION 8 (8 points)
+Run the model discussed in question 7. (2pts)  
+Interpret the coefficients on sex and smoker (4 pts).  
+Look at standard errors on coefficients for sex and smoker. Why are they different? (2 pts)  
+[Hint: look at the formula for how we calculate the variance of our coefficient estimates]
+
+```{r}
+charges_mod <- lm(charges ~ age + sex + bmi + smoker, data = insurance)
+summary(charges_mod)
+```
+The intercept, which represents the previously described base group, is -11633.49, is statistically significant under level of 0.05 (and even below 0.001). Age increases the charges by 259.45 per additional year and is also very statistically significant. The effect from gender, though not statistically significant even at a high significance level, shows a difference of -109.04 in charges on average if the group is male. Since the variance of the coefficients is the ratio of deviation of residuals over sample size times the variable value times the variance of the variable times 1 minus the goodness of fit, the coefficients of sex and smoker will be different because they have different variances, and values. The variances of the variables are different because, even though they are both binary variables in this case, there are different numbers and different distribution "peak width" (as described by standard deviation) of males compared to smokers. 
+```{r}
+var(ifelse(insurance$sex == 'male', 1, 0))
+```
+```{r}
+var(ifelse(insurance$smoker == 'yes', 1, 0))
+```
+As we can see above, the values of the variation of the sex and smoker variables is different, resulting in the calculation of coefficient standard error being different.
+
+### QUESTION 9 (12 points)
+The model above implicitly assumes the effect of bmi is the same for both smokers and nonsmokers. Test whether this assumption is true and briefly discuss your results (i.e., tell me whether the assumption is true or not). (4 pts)  
+Interpret the simple main effect of bmi and smoker as well as the interaction. (4 pts)  
+What are the estimated charges for a 38 years old non smoker man with 25 bmi? (2 pts)  
+What are the estimated charges for a 25 years old smoker woman with 30 bmi? (2 pts)
+
+```{r}
+charges_mod2 <- lm(charges ~ age + sex + bmi + smoker + smoker*bmi, data = insurance)
+summary(charges_mod2)
+```
+Given that moderation effect of smoking status on bmi (or the other way around) is statistically significant it would seem the assumption that the effect of bmi is not the same for both smokers and non-smokers. 
+
+At the base level where there is no interaction since it is a group of aged 0 female non-smokers at bmi 0, charges average at -2071.07. Every additional year in age adds 266.37 to the charges and this effect is statistically significant. On average males pay 473.50 on average less than females in charges. This effect from gender is statistically significant but only at a relatively high significance level of 0.1. Every one unit increase in BMI results in a simple main effect of 7.969 increase in insurance charges conditioned on the person being a non-smoker. It should be noted that this effect is statistically insignificant. It also contributes relatively little to the charges compared to the other factors based on magnitude. If the person is a smoker, there is an average decrease of 20,193 in charges compared to a non-smoker, given that BMI is 0. Finally, for a group of smokers, moderation of smoking on bmi towards charges additionally increases charges by 1435.61 for every unit of increase in bmi, an incremental change in slope. In other words, for smokers every 1 bmi increase charges increase by approximately 1443.57, holding all else constant.
+```{r}
+# 38 years old non smoker man with 25 bmi
+test_df1 <- data.frame(age=38,
+                      sex="male",
+                      bmi=25,
+                      smoker="no")
+predict(charges_mod2, newdata = test_df1)
+```
+38 years old non smoker man with 25 bmi would get charged 23473.84.
+```{r}
+# 25 years old smoker woman with 30 bmi
+test_df2 <- data.frame(age=25,
+                      sex="female",
+                      bmi=30,
+                      smoker="yes")
+predict(charges_mod2, newdata = test_df2)
+```
+25 years old smoker woman with 30 bmi would get charged 27702.38.
+
+### QUESTION 10 (4 points)
+Do you trust the coefficients in the model above? In other words, do you consider these to be reasonable causal estimates of the effects of the different variables? Why or why not?
+
+Given that bmi's coefficient is far from being statistically significant and the gender coefficient is barely above a signficance level of 0.05, I would not trust these estimates. I might trust these coefficients if literature has previously shown that they are causally linked to charges. However, since the R-squared of the new model is higher by about 0.1, it would seem that the new model is at least more trustable than the older model without the interaction.

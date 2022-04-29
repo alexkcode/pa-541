@@ -1,0 +1,488 @@
+---
+title: "Intro to Data Visualization"
+author: 'NAME:  Michael D. Siciliano'
+date: "PA 541 - Week 6"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Getting Started
+
+Let's read in some data and make our first plot. We will work with the fatalities data.
+
+```{r fatalities}
+fatal = read_csv("Fatalities.csv")
+fatal
+
+#An initial plot
+
+#let's start with just the data
+ggplot(data = fatal)
+
+#now add an aesthetic mapping. These mappings describe
+#how properties of the data connect to features in the graph
+#now we get x and y labels and scale, but no presentation of 
+#data.
+ggplot(data = fatal,
+       mapping = aes(x = unemp, y = income)) 
+
+#finally add a geometry, so R knows how to 
+#interpret and present your mappings
+ggplot(data = fatal,
+       mapping = aes(x = unemp, y = income)) +
+  geom_point() 
+```
+
+Note we did three things here with our plot.  We set the data, we made mappings of two variables to the and x and y axis, and then we added a geometry to tell R how we want it to draw the plot. Those are three key components you need to produce a visualization.  
+
+
+One thing that was confusing to me, was that often you would see the mapping placed inside the geometry.  You will produce the same plot.  The key here is to remember that you can set global data, that would be inherited by all other geoms we place in our plot. But you can also have layer specific data; data this is specific to a particular geom. In the plot below, we have a layer specific mapping.  So if we add a new layer to our plot below, it won't take the x values from unemp and y values from income. [On your own, try adding geom_smooth() to the plot.  What error do you get?  Now place the mappings as global data, as we did in the previous plot and also add geom_smooth()]
+
+```{r}
+ggplot(data = fatal) +
+  geom_point(mapping = aes(x = unemp, y = income))
+```
+
+Sidenote, often people don't type out data =  or mapping = . I am doing this here so you can see the different elements we are combining together to create our plots. 
+
+Now we can obviously do more than map positions. One very useful thing we can do is map colors. Since we want to map color to a particular variable in our data, such a mapping also goes in our aes() argument. 
+
+```{r}
+ggplot(data = fatal,
+       mapping = aes(x = unemp, y = income,
+                     color = unemp < 10)) +
+  geom_point()
+```
+
+In addition to mapping color, you can also force it to be a specific color. No legend shows up here because it is not a variable that is being mapped to color.
+
+```{r}
+ggplot(data = fatal,
+       mapping = aes(x = unemp, y = income)) +
+  geom_point(color = 'green4')
+```
+
+Now a point of major confusion for me and others is when we put our color choice inside the aesthetic mappings.
+
+Notice what happens in the plot below.  We don't get the color we want and we get a strange legend. But what we are telling R here is that we are mapping the expression 'green4' to color.  So we are basically saying we have this fixed variable called 'green4' and it will be recycled to every variable in our dataset. This is clearly wrong however. 
+
+Remember: if you want to take something from the data and map it to an aesthetic, you put it in aes.  If you want to set something, such as color or size, you set it outside of aes() on the layer you want it. Remember setting vs mapping aesthetics.  If you are not mapping a variable to a color (or other aesthetic), it does not go in the aes() argument.  
+
+```{r}
+ggplot(data = fatal,
+       mapping = aes(x = unemp, y = income,
+                     color = 'green4')) +
+  geom_point()
+```
+
+## Layering Geoms
+
+One of the things we can do is add additional geoms as layers in our plots.
+
+```{r}
+#let's first subset the data so we don's clutter our plot
+ggplot(data = filter(fatal, state %in% c("al", "az", "ak", "pa", "il")),
+       mapping = aes(x = unemp, y = income)) +
+  geom_point(color = 'green4') + 
+  geom_line()
+```
+
+Notice that the points are green but the lines are black.  Why?  Well, this has to do with the fact that 'green' was a geom specific property of geom_point.  We did not pass a color to geom_line and thus uses the default black.  We can change that by:
+
+```{r}
+ggplot(data = filter(fatal, state %in% c("al", "az", "ak", "pa", "il")),
+       mapping = aes(x = unemp, y = income)) +
+  geom_point(color = 'green4') + 
+  geom_line(color = 'green4')
+```
+
+
+## Bar chart vs col chart
+
+As Healy discusses in *Data Visualization*, some geoms plot the data directly (e.g., geom point takes the values of our X and Y variables and plots points corresponding to those values directly on the grid).  Other geoms do some work behind the scenes.  Each of the geom_ functions we can call in ggplot has an associated stat_ function that it uses by default and for which you can change.  Let's explore this idea a bit.
+
+For bar and column charts, we often want categorical data; so let's use the mpg data and look at an example of a bar chart.
+
+```{r}
+data(mpg)
+#This dataset contains a subset of the fuel economy data that the EPA makes available on
+#http://fueleconomy.gov. It contains only models which had a new release every year between 1999 
+#and 2008 - this was used as a proxy for the popularity of the car.
+
+ggplot(data = mpg, mapping = aes( x = class)) + geom_bar()
+```
+
+Note, we did not pass to our aes() argument a variable for Y.  That is because the default stat_ function geom_bar() is stat_count().  And thus it automatically counted the number of observations for each of category of car class.  If there were NA values in that variable, an NA category would be included in the bar chart by default.  If you wanted to drop the NA, you could do the following: 
+
+```{r, results = 'hide'}
+ggplot(data = remove_missing(mpg), mapping = aes( x = class)) + geom_bar()
+```
+
+What if we try to create this same plot with geom_col()
+
+```{r, error = TRUE}
+#note, the error = TRUE above is needed to allow the markdown to
+#compile into a PDF.  Without it, it won't run and flag the
+#error in your code
+
+ggplot(data = mpg, mapping = aes( x = class)) + geom_col()
+```
+
+Now we get an error that we are required to provide a Y variable in the aesthetic mappings.  Why?  Well the default stat_ for geom_col is stat_identity.  Thus it leaves the data as is and therefore you need to supply both an X and Y value. Consequently, with geom_col, the height of the bars rendered on the plot correspond to the values in the data.  
+
+Let's think. What if you wanted to plot the average highway miles for each car class.  You might first attempt the following:
+
+```{r}
+ggplot(data = mpg, mapping = aes( x = class, y = hwy)) + geom_col()
+```
+
+This is clearly not what you intended.  ggplot is doing something reasonable here and is summing up all of the hwy miles per gallon for each class and plotting the total.  You can see this by calculating those totals for yourself.
+
+```{r}
+mpg %>% group_by(class) %>%
+  summarize(hwy.tot = sum(hwy))
+```
+
+So what do we do if you want to show the average.  Well, we can turn to the dplyr verbs we learned and preprocess our data.  In other words, we can create a new dataset (or tibble) that contains the exact values we want to plot. 
+
+```{r}
+mpg.avg = mpg %>%
+  group_by(class) %>%
+  summarize(avg.hwy = mean(hwy))
+
+ggplot(data = mpg.avg, mapping = aes(x = class, y = avg.hwy)) + geom_col()
+```
+
+
+
+Remember -  geom_bar() was designed to make it easy to create bar charts that show the counts of some different categories in your data.  For geom_col() on the other hand, it shows the actual values of the variables in the data.  Thus, with geom_col(), you often wrangle or summarize your data prior to plotting.
+
+## Color vs fill (especially for bar/column charts)
+
+These two aesthetic mappings can be confusing at first.  Compare the following two plots:
+
+```{r}
+ggplot(data = mpg, mapping = aes( x = class, color = class)) + geom_bar()
+
+ggplot(data = mpg, mapping = aes( x = class, fill = class)) + geom_bar()
+
+```
+
+Here we can see that *fill* defines the color by which the geom will be filled. On the other hand, *color* defines the outline of the geom. 
+
+A legend shows up by default. This is redundant information in these plots. We can remove it with the following code:
+
+```{r}
+ggplot(data = mpg, mapping = aes( x = class, fill = class)) + geom_bar() +
+  guides(fill = FALSE) 
+
+```
+
+Note, that points, generally, only have color and no fill.  There are shapes that you can use for your points that do allow you to pass both a color and fill and therefore have one color for the primary shape and one color for the outline. 
+
+## Discrete vs continuous colors 
+
+R looks at the type of vector you are passing to color and if it is a discrete scale, like a factor, it will apply a discrete color scheme.  If it is a continuous variable then it will apply a color gradient.
+
+```{r}
+ggplot(data = fatal,
+       mapping = aes(x = unemp, y = income,
+                     color = state)) + 
+  geom_point()
+```
+Maybe not a good idea to use a variable with 50 categories, but you get the point.
+
+Now if you were to give it a numeric value, like year, you will get a color gradient (moving from dark to light)
+
+```{r}
+ggplot(data = fatal,
+       mapping = aes(x = unemp, y = income,
+                     color = year)) + 
+  geom_point()
+```
+
+But maybe that is not what you really want here.  Maybe you want to treat year as a factor variable. 
+
+```{r}
+ggplot(data = fatal,
+       mapping = aes(x = unemp, y = income,
+                     color = factor(year) ) ) + 
+  geom_point()
+```
+
+
+## Different Color Palettes
+
+You are not restricted to the default colors R chooses for you. You can set colors manually or choose a palette from an existing package.  I like the RColorBrewer Package.
+
+```{r}
+#take a look at the color palettes in color brewer
+RColorBrewer::display.brewer.all()
+
+ggplot(data = fatal,
+       mapping = aes(x = unemp, y = income,
+                     color = factor(year)) ) + 
+  scale_color_brewer(palette = "Set1") +
+  geom_point()
+
+#and for our example of a bar plot
+ggplot(data = mpg, mapping = aes( x = class, fill = class)) + geom_bar() +
+  scale_fill_brewer(palette = "Set3")
+
+```
+
+
+
+## Faceting your data
+
+It is much easier for your eyes and minds to make sense of data that has been faceted.  Faceting is a great option to avoid plots with too much information on them.  The subplots produced by faceting have the same axes and so it make it easier for us to compare across the faceted categories.  Let's look at an example. Let's begin with a plot from above:
+
+```{r}
+ggplot(data = fatal,
+       mapping = aes(x = unemp, y = income,
+                     color = factor(year)) ) + 
+  scale_color_brewer(palette = 'Set1') +
+  geom_point()
+```
+
+Very difficult to see what is going on here or to make sense of the different years.
+
+Instead of having the year just take on a color value in a single plot, we could also facet by year.
+
+```{r}
+ggplot(data = fatal,
+       mapping = aes(x = unemp, y = income,
+                     color = factor(year)) ) + 
+  scale_color_brewer(palette = 'Set1') +
+  geom_point() +
+  facet_wrap(~year)
+
+#obviously, we could drop the coloring by year here...though I kind of like it 
+#but I would drop the legend. You can facet by more than one variable using facet_grid
+```
+
+
+## Legends and Titles
+
+Let's start with looking at our **legends**.  There are two ways to adjust the legend title and associated labels.  The first is outside of your ggplot call.  You can change the data frame itself so the variable name and categories/factors have the names you desire.  The other way, which we will look at here, is to do the adjustments inside the ggplot call.  The legend serves as a guide to the viewer of the figure to understand how fill, color, linetype, shape and other aesthetics have been applied to the plot.  
+
+Let's work with our mpg data to do this.
+
+```{r}
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = class)) + geom_point()
+#note displ is engine displacement in liters
+```
+
+To change the title of your legend, you can specify it using the labs function.  We will use this again below when we want to make changes to our main title and axis labels.  For now, let's just change the legend title.  Because the legend is associated with the mapping 'color', we indicate in the labs that we want the mapping color to have the title of "Type of Car".  In other words, this is saying, the label of the thing we mapped to the aesthetic color should "Type of Car".
+
+```{r}
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = class)) + geom_point() +
+  labs(color = "Type of Car")
+```
+
+
+You can also change the legend position of your plot using the theme() function.
+
+```{r}
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = class)) + geom_point() +
+  labs(color = "Type of Car") + 
+  theme(legend.position="bottom")
+#options for the legend position are: left, top, right, bottom
+#you can also pass legend.position a numeric vector (x and y coordinates)
+#to put the legend wherever you want, even inside the plotting area. 
+```
+
+Let's now take a look at **titles**.  
+
+To change our titles we can use the same labs function and indicate the main title for the plot, the subtitle for the plot, the x and y axis labels, a caption to indicate source.  
+
+```{r}
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = class)) + geom_point() +
+  labs(title = "Highway Miles per Gallon for Different Engine Displacements",
+       subtitle = "Popular Cars from 1999 to 2009",
+       x = "Engine Displacement in Liters",
+       y = "Highway Miles per Gallon", 
+       caption = "Data Source: mpg data",
+       color = "Type of Car")
+```
+
+
+The mappings that we choose (such as color, fill, shape, and size) all have scales that allow us to adjust how they are presented. Scales for mappings may have labels, axis tick marks, specific colors, etc...and if we want to adjust them we need to use the appropriate scale_ function. Each scale function has two components to it (resulting in a huge number of different scale functions).  For each scale you need to identify the particular mapping you are referring to (x, y, color, fill, shape, size) as well as the kind of mapping that is occurring (continuous, discrete, manual).
+
+Because we mapped color to a discrete (and not continuous) variable, the appropriate scale_ function to use is scale_color_discrete().  This function will allow us to change the color values associated with each discrete category of *class*, change the title or name of the legend, and change the labels.  For instance, let's say we wanted to change the legend name to "Car Type" and also capitalize each of the car types, we could do the following.
+
+```{r}
+#drop the labs call to simplify the code here
+
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = class)) + geom_point() +
+  scale_color_discrete(name = "Car Type",
+                       labels = c("Two-Seater", "Compact", "Midsize", "Minivan", 
+                                  "Pickup", "Subcompact", "SUV"))
+
+#need to make sure the labels are in the exact order.  There is no warning if you reorder them and 
+#then your plot is showing the wrong color for a given class.
+#Below, I switch SUV and compact. Which you can see results in the wrong plot. 
+
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = class)) + geom_point() +
+  scale_color_discrete(name = "Car Type",
+                       labels = c("Two-Seater", "SUV", "Midsize", "Minivan", 
+                                  "Pickup", "Subcompact", "Compact"))
+
+#One way to avoid this is to always set the breaks argument in your scale call. As long as
+#you match your labels to where you set your breaks, you will always map the right
+#color to the right category. As you can see below, I don't set the breaks alphabetically
+#as they would normally be set, but the results are fine because the labels correspond
+#to the correct break points.
+
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = class)) + geom_point() +
+  scale_color_discrete(name = "Car Type",
+                       breaks = c("2seater", "suv", "midsize", "minivan", "pickup",
+                                  "subcompact", "compact"),
+                       labels = c("Two-Seater", "SUV", "Midsize", "Minivan", 
+                                  "Pickup", "Subcompact", "Compact"))
+
+```
+
+In the same way we adjusted our color mapping, we can adjust other mappings, in this case to our x or y axis or both.  Let's adjust the y-axis so we have tick marks for every 5 miles per gallon. Now let's think again of our mapping and our type. Because we are dealing with your mapping to the y axis and that mapping is continuous variable, we are going to call scale_y_continuous().  Compare this to what we called our color aesthetic, there we needed scale_color_discrete().
+
+```{r}
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = class)) + geom_point() +
+  scale_color_discrete(name = "Car Type",
+                       labels = c("Two-Seater", "Compact", "Midsize", "Minivan", 
+                                  "Pickup", "Subcompact", "SUV")) +
+  scale_y_continuous(breaks = seq(0,50, by = 5))
+```
+
+Notice here that the y axis is truncated at 15 and above 45, even though we set our breaks to run in intervals of 5 from zero to 50.  This is because there are not cars with hwy values below 10 or above 45 and thus the graph is truncated to avoid a lot of empty space.  If you want to show that space, you need to tell R what the limits of the y axis should be.
+
+```{r}
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = class)) + geom_point() +
+  scale_color_discrete(name = "Car Type",
+                       labels = c("Two-Seater", "Compact", "Midsize", "Minivan", 
+                                  "Pickup", "Subcompact", "SUV")) +
+  scale_y_continuous(limits = c(0,50), breaks = seq(0,50, by = 5))
+```
+
+Not that this is a good idea for this plot, but you can choose your own labels for the axis tick marks just as you chose your own labels for the legend.  This time let's adjust the x axis.  The scale we need should make sense...it is scale_x_continuous()
+
+```{r}
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = class)) + geom_point() +
+  scale_color_discrete(name = "Car Type",
+                       labels = c("Two-Seater", "Compact", "Midsize", "Minivan", 
+                                  "Pickup", "Subcompact", "SUV")) +
+  scale_y_continuous(limits = c(0,50), breaks = seq(0,50, by = 5)) +
+  scale_x_continuous(breaks = c(2,4,6), labels = c("two", "four", "six"))
+```
+
+
+You may want to make additional adjustments now, including changing the font size, text color, or other aspects of legend and text to improve your figure.  These changes are done through settings in the theme.  Before we do that though, let me first mention that there are different themes that make adjustments to the entire look of your plot.  So for instance if we wanted a Wall Street Journal theme to our plot we could do the following:
+
+```{r}
+
+#bring in the ggthemes library
+library(ggthemes)
+
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = class)) + geom_point() +
+  scale_color_discrete(name = "Car Type",
+                       labels = c("Two-Seater", "Compact", "Midsize", "Minivan", 
+                                  "Pickup", "Subcompact", "SUV")) +
+  theme_wsj()
+
+#Or the Economist
+
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = class)) + geom_point() +
+  scale_color_discrete(name = "Car Type",
+                       labels = c("Two-Seater", "Compact", "Midsize", "Minivan", 
+                                  "Pickup", "Subcompact", "SUV")) +
+  theme_economist()
+
+#there are a large number of other themes you can set
+```
+
+Whether you are using a specific theme, like the Economist or other, there may be features for different elements that you still want to adjust (such as font size, color, etc...). Those tweaks are also done in through themes.
+
+```{r}
+#here I will use the default theme and bring back our labs so we have titles and
+#labels that we can change. Let's make something real ugly to show how this works.
+
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = class)) + geom_point() +
+  scale_color_discrete(name = "Car Type",
+                       labels = c("Two-Seater", "Compact", "Midsize", "Minivan", 
+                                  "Pickup", "Subcompact", "SUV")) +
+  labs(title = "Highway Miles per Gallon for Different Engine Displacements",
+       subtitle = "Popular Cars from 1999 to 2009",
+       x = "Engine Displacement in Liters",
+       y = "Highway Miles per Gallon", 
+       caption = "Data Source: mpg data") + 
+  theme(plot.title = element_text(size = 15, color = "purple"),
+        axis.title.x = element_text(size = 15, color = "green"),
+        axis.text.x = element_text(face = "italic"),
+        axis.text.y = element_text(size = 10, color = "blue"),
+        legend.title = element_text(size = 12, color = "gray"))
+
+#side note, since I set the legend title in the scale_color_discrete()
+#call, I didn't need to do it again in labs()
+```
+
+If you want to drop any of these elements, you can do it through the theme as well. Here below we remove the x axis title.
+
+```{r}
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = class)) + geom_point() +
+  scale_color_discrete(name = "Car Type",
+                       labels = c("Two-Seater", "Compact", "Midsize", "Minivan", 
+                                  "Pickup", "Subcompact", "SUV")) +
+  labs(title = "Highway Miles per Gallon for Different Engine Displacements",
+       subtitle = "Popular Cars from 1999 to 2009",
+       x = "Engine Displacement in Liters",
+       y = "Highway Miles per Gallon", 
+       caption = "Data Source: mpg data",
+       color = "Type of Car") + 
+  theme(plot.title = element_text(size = 15, color = "purple"),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(face = "italic"),
+        axis.text.y = element_text(size = 10, color = "blue"),
+        legend.title = element_text(size = 12, color = "gray"))
+```
+
+
+I have a hard time keeping themes and scale and guides straight.  Healy offers a helpful discussion in his book on p. 126:
+
+"What are the differences between the scale_ functions, the guides() function, and the theme() function? When do you know to use one rather than the other? Why are there so many scale_ functions listed in the online help, anyway? How can you tell which one you need?
+
+Here is a rough and ready starting point:
+
+Every aesthetic mapping has a scale. If you want to adjust how that scale is marked or graduated, then you use a scale_ function.
+
+Many scales come with a legend or key to help the reader interpret the graph. These are called guides. You can make adjustments to them with the guides() function. Perhaps the most common use case is to make the legend disappear, as it is sometimes superfluous. Another is to adjust the arrangement of the key in legends and colorbars.
+
+Graphs have other features not strictly connected to the logical structure of the data being displayed. These include things like their background color, the typeface used for labels, or the placement of the legend on the graph. To adjust these, use the theme() function.
+
+Consistent with ggplot’s overall approach, adjusting some visible feature of the graph means first thinking about the relationship that the feature has with the underlying data. Roughly speaking, if the change you want to make will affect the substantive interpretation of any particular geom, then most likely you will either be mapping an aesthetic to a variable using that geom’s aes() function, or you will be specifying a change via some scale_ function. If the change you want to make does not affect the interpretation of a given geom_, then most likely you will either be setting a variable inside the geom_ function, or making a cosmetic change via the theme() function."
+
+
+## Spatial Data
+
+Some websites to explore if you are interested in doing more work with maps:
+
+r-spatial website (https://www.r-spatial.org)
+
+sf package (https://r-spatial.github.io/sf)
+
+## Extensions to ggplot2
+
+see: exts.ggplot2.tidyverse.org
+
+patchwork
+gganimate
+ggforce
+ggraph
+ggrepel
+
+
